@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { PWARegister } from "./PWARegister";
 import Script from "next/script";
+import { Analytics } from '@vercel/analytics/react';
 
 // Fonts
 const geistSans = Geist({
@@ -45,6 +46,7 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable} bg-gradient-to-b from-[#e0f2f1] to-[#f3e5f5] min-h-screen`}>
         <PWARegister />
         {children}
+        <Analytics />
       </body>
     </html>
   );
