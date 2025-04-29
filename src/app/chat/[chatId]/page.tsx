@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { auth, db } from '../../../lib/firebase';
+import { auth, db } from '@/lib/firebase';
 import {
   collection,
   addDoc,

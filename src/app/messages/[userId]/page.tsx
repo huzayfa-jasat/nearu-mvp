@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { auth, db } from '../../lib/firebase';
+import { auth, db } from '@/lib/firebase';
 import { collection, query, orderBy, addDoc, serverTimestamp, onSnapshot, where, Timestamp, doc, getDoc } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { use } from 'react';
