@@ -9,19 +9,25 @@ import {
   addDoc,
   doc,
   setDoc,
-  getDoc,
   onSnapshot,
   query,
   orderBy,
-  serverTimestamp
+  serverTimestamp,
+  Timestamp
 } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
+
+interface Message {
+  sender: string;
+  text: string;
+  timestamp: Timestamp;
+}
 
 export default function ChatPage() {
   const { chatId } = useParams();
   const [user, loadingAuth] = useAuthState(auth);
   const [otherUid, setOtherUid] = useState<string>('');
-  const [messages, setMessages] = useState<any[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [newMsg, setNewMsg] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -34,11 +40,11 @@ export default function ChatPage() {
   // Parse chatId and ensure chat doc exists
   useEffect(() => {
     if (!chatId || !user) return;
-    const uids = chatId.split('_');
+    const uids = typeof chatId === 'string' ? chatId.split('_') : [];
     const other = uids.find(id => id !== user.uid) || '';
     setOtherUid(other);
 
-    const chatRef = doc(db, 'chats', chatId);
+    const chatRef = doc(db, 'chats', typeof chatId === 'string' ? chatId : '');
     // create or merge chat doc with participants
     setDoc(chatRef, {
       users: [user.uid, other],
@@ -49,10 +55,10 @@ export default function ChatPage() {
   // Subscribe to messages subcollection
   useEffect(() => {
     if (!chatId) return;
-    const msgsRef = collection(db, 'chats', chatId, 'messages');
+    const msgsRef = collection(db, 'chats', typeof chatId === 'string' ? chatId : '', 'messages');
     const q = query(msgsRef, orderBy('timestamp'));
     const unsub = onSnapshot(q, snap => {
-      setMessages(snap.docs.map(d => d.data()));
+      setMessages(snap.docs.map(d => d.data() as Message));
       // scroll to bottom
       bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     });
@@ -61,7 +67,7 @@ export default function ChatPage() {
 
   const sendMessage = async () => {
     if (!newMsg.trim() || !chatId || !user) return;
-    const msgsRef = collection(db, 'chats', chatId, 'messages');
+    const msgsRef = collection(db, 'chats', typeof chatId === 'string' ? chatId : '', 'messages');
     await addDoc(msgsRef, {
       sender: user.uid,
       text: newMsg.trim(),
