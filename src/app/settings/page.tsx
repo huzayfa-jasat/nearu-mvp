@@ -89,6 +89,18 @@ export default function SettingsPage() {
             </button>
           </div>
         </div>
+        {/* Logout Button */}
+        <div className="mt-8">
+          <button
+            onClick={async () => {
+              await auth.signOut();
+              router.push('/login');
+            }}
+            className="w-full px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors"
+          >
+            Log Out
+          </button>
+        </div>
       </div>
     </div>
   );
