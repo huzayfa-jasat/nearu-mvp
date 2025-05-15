@@ -207,52 +207,13 @@ export default function MatchesPage() {
 
         <div className="space-y-4">
           {nearbyUsers.length === 0 ? (
-            <div className="bg-white bg-opacity-80 backdrop-blur-md rounded-2xl shadow-xl p-6 text-center text-gray-600">
-              No nearby students found. Keep walking around campus to find matches!
-            </div>
+            <div>No nearby students found. Keep walking around campus to find matches!</div>
           ) : (
-            nearbyUsers.map((user) => {
-              const crossingState = crossingStates[user.id];
-              const canMatch = crossingState && canUnlockChat(crossingState.events, user.id);
-              return (
-                <div
-                  key={user.id}
-                  className="bg-white bg-opacity-80 backdrop-blur-md rounded-2xl shadow-xl p-6"
-                >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h2 className="text-xl font-semibold text-gray-900">{user.name}</h2>
-                      <p className="text-gray-600">{user.program}</p>
-                    </div>
-                    <span className="text-sm text-gray-500">
-                      {Math.round(user.distance)}m away
-                    </span>
-                  </div>
-                  {/* Debug Info */}
-                  <div className="mt-2 p-2 bg-gray-100 rounded text-xs text-gray-700">
-                    <div><strong>My Location:</strong> {currentLocation ? `${currentLocation.latitude.toFixed(14)}, ${currentLocation.longitude.toFixed(14)}` : 'N/A'}</div>
-                    <div><strong>User Location:</strong> {user.location.latitude.toFixed(14)}, {user.location.longitude.toFixed(14)}</div>
-                    <div><strong>Distance:</strong> {user.distance.toFixed(2)} meters</div>
-                  </div>
-                  {canMatch && !matchRequested[user.id] && (
-                    <button
-                      className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-                      onClick={() => handleSendMatchRequest(user.id)}
-                    >
-                      Send Match Request
-                    </button>
-                  )}
-                  {canMatch && matchRequested[user.id] && (
-                    <span className="mt-4 inline-block text-green-600 font-semibold">Match Request Sent!</span>
-                  )}
-                  {crossingState && (
-                    <div className="mt-2 text-xs text-gray-500">
-                      Crossings: {crossingState.events.filter(e => e.userId === user.id).length} / {REQUIRED_CROSSINGS}
-                    </div>
-                  )}
-                </div>
-              );
-            })
+            nearbyUsers.map((user) => (
+              <div key={user.id}>
+                <strong>{user.name}</strong> - {user.program} - {user.distance.toFixed(2)}m
+              </div>
+            ))
           )}
         </div>
 
@@ -280,6 +241,12 @@ export default function MatchesPage() {
               );
             })}
           </ul>
+        </div>
+
+        <div className="mt-4 p-2 bg-gray-200 text-xs rounded">
+          <div><strong>nearbyUsers JSON:</strong> {JSON.stringify(nearbyUsers, null, 2)}</div>
+          <div><strong>currentLocation:</strong> {JSON.stringify(currentLocation, null, 2)}</div>
+          <div><strong>error:</strong> {error}</div>
         </div>
 
         <button onClick={() => window.location.reload()}>Refresh Location</button>
