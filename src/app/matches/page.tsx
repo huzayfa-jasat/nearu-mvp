@@ -117,12 +117,28 @@ export default function MatchesPage() {
       const users: NearbyUser[] = [];
       const newCrossingStates: Record<string, { events: PathCrossingEvent[]; lastProcessedTimestamp: number }> = { ...crossingStates };
       const newLoadingCrossings: Record<string, boolean> = { ...loadingCrossings };
+      
+      // Add debug info about snapshot
+      console.log('Snapshot received with', snapshot.docs.length, 'docs');
+      
       for (const docSnap of snapshot.docs) {
+        // Debug each user being processed
+        console.log('Processing user:', docSnap.id);
+        
         if (docSnap.id === user.uid) {
           console.log('Skipping self:', docSnap.id);
           continue;
         }
+        
         const userData = docSnap.data() as UserData;
+        console.log('User data:', {
+          id: docSnap.id,
+          name: userData.name,
+          hasLocation: !!userData.location,
+          isGhostMode: userData.ghostMode,
+          hasCurrentLocation: !!currentLocation
+        });
+        
         if (!userData.location) {
           console.log('Skipping, no location:', docSnap.id);
           continue;
@@ -135,12 +151,16 @@ export default function MatchesPage() {
           console.log('Skipping, no current location');
           continue;
         }
+        
         const distance = calculateDistance(userData.location, currentLocation);
+        console.log('Distance calculated:', distance, 'for user:', docSnap.id);
+        
         if (distance > 100) {
           console.log('Skipping, too far:', docSnap.id, distance);
           continue;
         }
-        console.log('Including user:', docSnap.id, userData.name, distance);
+        
+        console.log('Adding user to nearbyUsers:', docSnap.id);
         users.push({
           id: docSnap.id,
           name: userData.name || 'Unknown',
@@ -148,6 +168,7 @@ export default function MatchesPage() {
           distance,
           location: userData.location
         });
+        
         // Load and update crossing events for this user
         if (!crossingStates[docSnap.id] && !loadingCrossings[docSnap.id]) {
           newLoadingCrossings[docSnap.id] = true;
@@ -264,6 +285,29 @@ export default function MatchesPage() {
               </div>
             );
           })}</div>
+          <div><strong>Processing Steps:</strong>
+            {allUserDocs.map(docSnap => {
+              if (docSnap.id === user.uid) return null;
+              const userData = docSnap.data();
+              const distance = userData.location && currentLocation ? 
+                calculateDistance(userData.location, currentLocation) : null;
+              return (
+                <div key={docSnap.id} className="mt-2">
+                  <div><strong>User:</strong> {userData.name || 'Unknown'}</div>
+                  <div><strong>Has Location:</strong> {!!userData.location ? 'Yes' : 'No'}</div>
+                  <div><strong>Ghost Mode:</strong> {userData.ghostMode ? 'Yes' : 'No'}</div>
+                  <div><strong>Distance:</strong> {distance ? `${distance.toFixed(2)}m` : 'N/A'}</div>
+                  <div><strong>Would Include:</strong> {
+                    userData.location && 
+                    !userData.ghostMode && 
+                    currentLocation && 
+                    distance && 
+                    distance <= 100 ? 'Yes' : 'No'
+                  }</div>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         <button onClick={() => window.location.reload()}>Refresh Location</button>
