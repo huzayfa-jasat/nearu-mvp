@@ -155,6 +155,7 @@ export default function MatchesPage() {
           }
         }
       }
+      console.log('Nearby users to be set:', users);
       users.sort((a, b) => a.distance - b.distance);
       setNearbyUsers(users);
       setAllUserDocs(snapshot.docs);
@@ -188,6 +189,10 @@ export default function MatchesPage() {
       <div className="max-w-2xl mx-auto">
         <h1 className="text-3xl font-bold mb-8 text-indigo-600">Nearby Students</h1>
         
+        <div className="mb-4 text-xs text-gray-700">
+          <strong>My Current Location:</strong> {currentLocation ? `${currentLocation.latitude}, ${currentLocation.longitude}` : 'N/A'}
+        </div>
+
         {error && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
             {error}
@@ -276,6 +281,8 @@ export default function MatchesPage() {
             })}
           </ul>
         </div>
+
+        <button onClick={() => window.location.reload()}>Refresh Location</button>
       </div>
     </div>
   );
