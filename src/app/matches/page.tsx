@@ -118,44 +118,60 @@ export default function MatchesPage() {
       const newCrossingStates: Record<string, { events: PathCrossingEvent[]; lastProcessedTimestamp: number }> = { ...crossingStates };
       const newLoadingCrossings: Record<string, boolean> = { ...loadingCrossings };
       for (const docSnap of snapshot.docs) {
-        if (docSnap.id === user.uid) continue;
-        const userData = docSnap.data() as UserData;
-        if (!userData.location || userData.ghostMode || !currentLocation) continue;
-        const distance = calculateDistance(userData.location, currentLocation);
-        if (distance <= 100) {
-          console.log('userData:', userData, 'docSnap.id:', docSnap.id);
-          users.push({
-            id: docSnap.id,
-            name: userData.name || 'Unknown',
-            program: userData.program || 'Unknown',
-            distance,
-            location: userData.location
-          });
-          // Load and update crossing events for this user
-          if (!crossingStates[docSnap.id] && !loadingCrossings[docSnap.id]) {
-            newLoadingCrossings[docSnap.id] = true;
-            setLoadingCrossings({ ...newLoadingCrossings });
-            // Load events from Firestore
-            const pairId = [user.uid, docSnap.id].sort().join('_');
-            const crossingRef = doc(db, 'pathCrossings', pairId);
-            const crossingDoc = await getDoc(crossingRef);
-            const events = crossingDoc.exists() ? crossingDoc.data().events || [] : [];
-            // Process crossing
-            const state = { events, lastProcessedTimestamp: 0 };
-            const newState = await processPathCrossing(
-              user.uid,
-              docSnap.id,
-              currentLocation,
-              userData.location,
-              state
-            );
-            newCrossingStates[docSnap.id] = newState;
-            setCrossingStates({ ...newCrossingStates });
-            newLoadingCrossings[docSnap.id] = false;
-            setLoadingCrossings({ ...newLoadingCrossings });
-          }
-          <div><strong>userData JSON:</strong> {JSON.stringify(userData, null, 2)}</div>
+        if (docSnap.id === user.uid) {
+          console.log('Skipping self:', docSnap.id);
+          continue;
         }
+        const userData = docSnap.data() as UserData;
+        if (!userData.location) {
+          console.log('Skipping, no location:', docSnap.id);
+          continue;
+        }
+        if (userData.ghostMode) {
+          console.log('Skipping, ghost mode:', docSnap.id);
+          continue;
+        }
+        if (!currentLocation) {
+          console.log('Skipping, no current location');
+          continue;
+        }
+        const distance = calculateDistance(userData.location, currentLocation);
+        if (distance > 100) {
+          console.log('Skipping, too far:', docSnap.id, distance);
+          continue;
+        }
+        console.log('Including user:', docSnap.id, userData.name, distance);
+        users.push({
+          id: docSnap.id,
+          name: userData.name || 'Unknown',
+          program: userData.program || 'Unknown',
+          distance,
+          location: userData.location
+        });
+        // Load and update crossing events for this user
+        if (!crossingStates[docSnap.id] && !loadingCrossings[docSnap.id]) {
+          newLoadingCrossings[docSnap.id] = true;
+          setLoadingCrossings({ ...newLoadingCrossings });
+          // Load events from Firestore
+          const pairId = [user.uid, docSnap.id].sort().join('_');
+          const crossingRef = doc(db, 'pathCrossings', pairId);
+          const crossingDoc = await getDoc(crossingRef);
+          const events = crossingDoc.exists() ? crossingDoc.data().events || [] : [];
+          // Process crossing
+          const state = { events, lastProcessedTimestamp: 0 };
+          const newState = await processPathCrossing(
+            user.uid,
+            docSnap.id,
+            currentLocation,
+            userData.location,
+            state
+          );
+          newCrossingStates[docSnap.id] = newState;
+          setCrossingStates({ ...newCrossingStates });
+          newLoadingCrossings[docSnap.id] = false;
+          setLoadingCrossings({ ...newLoadingCrossings });
+        }
+        <div><strong>userData JSON:</strong> {JSON.stringify(userData, null, 2)}</div>
       }
       console.log('Nearby users to be set:', users);
       users.sort((a, b) => a.distance - b.distance);
@@ -192,6 +208,10 @@ export default function MatchesPage() {
             You are in ghost mode. Other users cannot see you.
           </div>
         )}
+
+        <div>nearbyUsers.length: {nearbyUsers.length}</div>
+
+        <div>{JSON.stringify(nearbyUsers, null, 2)}</div>
 
         <div className="space-y-4">
           {nearbyUsers.length === 0 ? (
@@ -236,6 +256,15 @@ export default function MatchesPage() {
           <div><strong>nearbyUsers JSON:</strong> {JSON.stringify(nearbyUsers, null, 2)}</div>
           <div><strong>currentLocation:</strong> {JSON.stringify(currentLocation, null, 2)}</div>
           <div><strong>error:</strong> {error}</div>
+          <div><strong>Debug Distances:</strong> {allUserDocs.map(docSnap => {
+            if (docSnap.id === user.uid || !currentLocation || !docSnap.data().location) return null;
+            const distance = calculateDistance(docSnap.data().location, currentLocation);
+            return (
+              <div key={docSnap.id}>
+                {docSnap.data().name || 'Unknown'}: {distance.toFixed(2)}m
+              </div>
+            );
+          })}</div>
         </div>
 
         <button onClick={() => window.location.reload()}>Refresh Location</button>
