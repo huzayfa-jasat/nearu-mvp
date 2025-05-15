@@ -4,12 +4,10 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/components/AuthProvider';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, doc, getDoc, setDoc, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, getDoc, setDoc } from 'firebase/firestore';
 import { startLocationTracking, stopLocationTracking } from '@/lib/location';
 import { calculateDistance } from '@/lib/location';
 import { Location } from '@/lib/types';
-import { processPathCrossing } from '@/lib/pathCrossing';
-import type { PathCrossingEvent } from '@/lib/pathCrossing';
 
 interface NearbyUser {
   id: string;
@@ -33,10 +31,7 @@ export default function MatchesPage() {
   const [error, setError] = useState('');
   const [isGhostMode, setIsGhostMode] = useState(false);
   const [currentLocation, setCurrentLocation] = useState<Location | null>(null);
-  const [crossingStates, setCrossingStates] = useState<Record<string, { events: PathCrossingEvent[]; lastProcessedTimestamp: number }>>({});
-  const [loadingCrossings, setLoadingCrossings] = useState<Record<string, boolean>>({});
-  const [allUserDocs, setAllUserDocs] = useState<QueryDocumentSnapshot<DocumentData>[]>([]);
-  const [debugUsers, setDebugUsers] = useState<NearbyUser[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     if (!user) return;
@@ -73,6 +68,7 @@ export default function MatchesPage() {
     const handleLocationUpdate = async (location: Location) => {
       try {
         setCurrentLocation(location);
+        setIsLoading(false);
         // Fetch program from Firestore
         let name = 'Unknown';
         let program = 'Unknown';
@@ -104,6 +100,7 @@ export default function MatchesPage() {
     const handleLocationError = (error: Error) => {
       console.error('Location error:', error);
       setError('Unable to get your location. Please enable location services.');
+      setIsLoading(false);
     };
 
     startLocationTracking(handleLocationUpdate, handleLocationError);
@@ -116,35 +113,33 @@ export default function MatchesPage() {
 
     const unsubscribe = onSnapshot(q, async (snapshot) => {
       const users: NearbyUser[] = [];
-      const newCrossingStates: Record<string, { events: PathCrossingEvent[]; lastProcessedTimestamp: number }> = { ...crossingStates };
-      const newLoadingCrossings: Record<string, boolean> = { ...loadingCrossings };
-      
       for (const docSnap of snapshot.docs) {
         if (docSnap.id === user.uid) continue;
         const userData = docSnap.data() as UserData;
         if (!userData.location || userData.ghostMode || !currentLocation) continue;
         const distance = calculateDistance(userData.location, currentLocation);
         if (distance <= 100) {
-          const newUser = {
+          users.push({
             id: docSnap.id,
             name: userData.name || 'Unknown',
             program: userData.program || 'Unknown',
             distance,
             location: userData.location
-          };
-          users.push(newUser);
-          // Debug the exact user object being pushed
-          setDebugUsers(prev => [...prev, { ...newUser, timestamp: Date.now() }]);
+          });
         }
       }
       users.sort((a, b) => a.distance - b.distance);
       setNearbyUsers(users);
-      setAllUserDocs(snapshot.docs);
     });
 
     return () => {
       stopLocationTracking();
       unsubscribe();
+      // Set isActive to false when component unmounts
+      setDoc(doc(db, 'users', user.uid), {
+        isActive: false,
+        lastActive: new Date()
+      }, { merge: true });
     };
   }, [user, currentLocation]);
 
@@ -153,12 +148,20 @@ export default function MatchesPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-gray-100 p-6">
       <div className="max-w-2xl mx-auto">
-        <h1 className="text-3xl font-bold mb-8 text-indigo-600">Nearby Students</h1>
-        
-        <div className="mb-4 text-xs text-gray-700">
-          <strong>My Current Location:</strong> {currentLocation ? `${currentLocation.latitude}, ${currentLocation.longitude}` : 'N/A'}
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold text-indigo-600">Nearby Students</h1>
+          <button
+            onClick={() => setIsGhostMode(!isGhostMode)}
+            className={`px-4 py-2 rounded-full text-sm font-medium ${
+              isGhostMode 
+                ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200' 
+                : 'bg-indigo-100 text-indigo-800 hover:bg-indigo-200'
+            }`}
+          >
+            {isGhostMode ? 'Ghost Mode: On' : 'Ghost Mode: Off'}
+          </button>
         </div>
-
+        
         {error && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
             {error}
@@ -171,89 +174,47 @@ export default function MatchesPage() {
           </div>
         )}
 
-        <div>nearbyUsers.length: {nearbyUsers.length}</div>
-
-        <div>{JSON.stringify(nearbyUsers, null, 2)}</div>
-
-        <div className="space-y-4">
-          {nearbyUsers.length === 0 ? (
-            <div>No nearby students found. Keep walking around campus to find matches!</div>
-          ) : (
-            nearbyUsers.map((user) => (
-              <div key={user.id}>
-                <strong>{user.name}</strong> - {user.program} - {user.distance.toFixed(2)}m
-              </div>
-            ))
-          )}
-        </div>
-
-        {/* Debug Panel: Show all users from Firestore query */}
-        <div className="mt-8 p-4 bg-yellow-100 rounded text-xs text-gray-800">
-          <h3 className="font-bold mb-2">Debug: All Users in Firestore (isActive: true)</h3>
-          <ul>
-            {allUserDocs.map((docSnap) => {
-              const userData = docSnap.data();
-              let reason = '';
-              if (docSnap.id === user.uid) reason = 'Filtered: This is you';
-              else if (!userData.location) reason = 'Filtered: No location';
-              else if (userData.ghostMode) reason = 'Filtered: Ghost mode';
-              else if (!currentLocation) reason = 'Filtered: No current location';
-              else if (calculateDistance(userData.location, currentLocation) > 100) reason = 'Filtered: Too far';
-              else reason = 'Included in Nearby Students';
-              return (
-                <li key={docSnap.id}>
-                  <div><strong>UID:</strong> {docSnap.id}</div>
-                  <div><strong>Name:</strong> {userData.name}</div>
-                  <div><strong>Location:</strong> {userData.location ? `${userData.location.latitude}, ${userData.location.longitude}` : 'N/A'}</div>
-                  <div><strong>Reason:</strong> {reason}</div>
-                  <div><strong>userData JSON:</strong> {JSON.stringify(userData, null, 2)}</div>
-                  <hr />
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-
-        <div className="mt-4 p-2 bg-gray-200 text-xs rounded">
-          <div><strong>nearbyUsers JSON:</strong> {JSON.stringify(nearbyUsers, null, 2)}</div>
-          <div><strong>currentLocation:</strong> {JSON.stringify(currentLocation, null, 2)}</div>
-          <div><strong>error:</strong> {error}</div>
-          <div><strong>Debug Distances:</strong> {allUserDocs.map(docSnap => {
-            if (docSnap.id === user.uid || !currentLocation || !docSnap.data().location) return null;
-            const distance = calculateDistance(docSnap.data().location, currentLocation);
-            return (
-              <div key={docSnap.id}>
-                {docSnap.data().name || 'Unknown'}: {distance.toFixed(2)}m
-              </div>
-            );
-          })}</div>
-          <div><strong>Processing Steps:</strong>
-            {allUserDocs.map(docSnap => {
-              if (docSnap.id === user.uid) return null;
-              const userData = docSnap.data();
-              const distance = userData.location && currentLocation ? 
-                calculateDistance(userData.location, currentLocation) : null;
-              return (
-                <div key={docSnap.id} className="mt-2">
-                  <div><strong>User:</strong> {userData.name || 'Unknown'}</div>
-                  <div><strong>Has Location:</strong> {!!userData.location ? 'Yes' : 'No'}</div>
-                  <div><strong>Ghost Mode:</strong> {userData.ghostMode ? 'Yes' : 'No'}</div>
-                  <div><strong>Distance:</strong> {distance ? `${distance.toFixed(2)}m` : 'N/A'}</div>
-                  <div><strong>Would Include:</strong> {
-                    userData.location && 
-                    !userData.ghostMode && 
-                    currentLocation && 
-                    distance && 
-                    distance <= 100 ? 'Yes' : 'No'
-                  }</div>
-                </div>
-              );
-            })}
+        {isLoading ? (
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Finding nearby students...</p>
           </div>
-          <div><strong>Debug Users Array:</strong> {JSON.stringify(debugUsers, null, 2)}</div>
-        </div>
-
-        <button onClick={() => window.location.reload()}>Refresh Location</button>
+        ) : (
+          <div className="space-y-4">
+            {nearbyUsers.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-gray-600 mb-4">No nearby students found. Keep walking around campus to find matches!</p>
+                <button 
+                  onClick={() => window.location.reload()}
+                  className="bg-indigo-100 text-indigo-800 px-4 py-2 rounded-full hover:bg-indigo-200"
+                >
+                  Refresh Location
+                </button>
+              </div>
+            ) : (
+              nearbyUsers.map((user) => (
+                <div 
+                  key={user.id}
+                  className="bg-white p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow"
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <strong className="text-lg">{user.name}</strong>
+                      <p className="text-gray-600">{user.program}</p>
+                    </div>
+                    <span className="text-sm text-gray-500">{user.distance.toFixed(1)}m away</span>
+                  </div>
+                  <button 
+                    className="mt-3 w-full bg-indigo-100 text-indigo-800 px-4 py-2 rounded-full hover:bg-indigo-200"
+                    onClick={() => {/* TODO: Implement messaging */}}
+                  >
+                    Message
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
