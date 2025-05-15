@@ -21,7 +21,7 @@ export default function Home() {
             </p>
             <button
               onClick={() => router.push('/login')}
-              className="bg-indigo-600 text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-indigo-700 transition duration-300"
+              className="bg-red-500 text-white px-8 py-4 rounded-lg"
             >
               Get Started
             </button>

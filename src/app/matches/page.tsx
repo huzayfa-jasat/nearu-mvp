@@ -2,132 +2,153 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { auth, db } from '@/lib/firebase';
-import { collection, query, where, orderBy, getDocs, Timestamp, getDoc, doc } from 'firebase/firestore';
-import { useAuthState } from 'react-firebase-hooks/auth';
+import { useAuth } from '@/components/AuthProvider';
+import { db } from '@/lib/firebase';
+import { collection, query, where, onSnapshot, doc, getDoc, setDoc } from 'firebase/firestore';
+import { startLocationTracking, stopLocationTracking } from '@/lib/location';
+import { calculateDistance } from '@/lib/location';
+import { Location } from '@/lib/types';
 
-interface CheckIn {
-  uid: string;
-  spot: string;
-  createdAt: Timestamp;
-}
-
-interface CrossCount {
-  [key: string]: number;
+interface NearbyUser {
+  id: string;
+  name: string;
+  program: string;
+  distance: number;
+  location: Location;
 }
 
 export default function MatchesPage() {
-  const [user, loading] = useAuthState(auth);
-  const [nearbyUsers, setNearbyUsers] = useState<CheckIn[]>([]);
-  const [crossCounts, setCrossCounts] = useState<CrossCount>({});
+  const { user } = useAuth();
+  const [nearbyUsers, setNearbyUsers] = useState<NearbyUser[]>([]);
   const [error, setError] = useState('');
-  const router = useRouter();
+  const [isGhostMode, setIsGhostMode] = useState(false);
+  const [currentLocation, setCurrentLocation] = useState<Location | null>(null);
 
   useEffect(() => {
     if (!user) return;
 
-    const fetchNearbyUsers = async () => {
+    // Check ghost mode
+    const checkGhostMode = async () => {
       try {
-        // Get check-ins from the last hour
-        const oneHourAgo = new Date();
-        oneHourAgo.setHours(oneHourAgo.getHours() - 1);
-
-        const checkinsRef = collection(db, 'checkins');
-        const q = query(
-          checkinsRef,
-          where('createdAt', '>', Timestamp.fromDate(oneHourAgo)),
-          orderBy('createdAt', 'desc')
-        );
-
-        const querySnapshot = await getDocs(q);
-        const checkins: CheckIn[] = [];
-        const seenUsers = new Set<string>();
-
-        querySnapshot.forEach((doc) => {
-          const data = doc.data() as CheckIn;
-          // Don't show current user and only show each user once
-          if (data.uid !== user.uid && !seenUsers.has(data.uid)) {
-            checkins.push(data);
-            seenUsers.add(data.uid);
-          }
-        });
-
-        setNearbyUsers(checkins);
-
-        // Fetch or initialize cross counts
-        const userCrossCountsRef = doc(db, 'crossCounts', user.uid);
-        const crossCountsDoc = await getDoc(userCrossCountsRef);
-        
-        if (crossCountsDoc.exists()) {
-          setCrossCounts(crossCountsDoc.data() as CrossCount);
-        } else {
-          // For testing, initialize with count 1 for all nearby users
-          const initialCounts: CrossCount = {};
-          checkins.forEach(checkIn => {
-            initialCounts[checkIn.uid] = 1;
-          });
-          setCrossCounts(initialCounts);
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        if (userDoc.exists()) {
+          const data = userDoc.data();
+          setIsGhostMode(data.ghostMode || false);
         }
-
       } catch (e) {
-        console.error('Error fetching nearby users:', e);
-        setError('Failed to load nearby users.');
+        console.error('Error checking ghost mode:', e);
       }
     };
 
-    fetchNearbyUsers();
-  }, [user]);
+    checkGhostMode();
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p>Loading...</p>
-      </div>
+    // Start location tracking
+    const handleLocationUpdate = async (location: Location) => {
+      try {
+        setCurrentLocation(location);
+        // Update user's location in Firestore
+        await setDoc(doc(db, 'users', user.uid), {
+          location,
+          lastActive: new Date()
+        }, { merge: true });
+      } catch (e) {
+        console.error('Error updating location:', e);
+        setError('Failed to update location');
+      }
+    };
+
+    const handleLocationError = (error: Error) => {
+      console.error('Location error:', error);
+      setError('Unable to get your location. Please enable location services.');
+    };
+
+    startLocationTracking(handleLocationUpdate, handleLocationError);
+
+    // Listen for nearby users
+    const q = query(
+      collection(db, 'users'),
+      where('isActive', '==', true)
     );
-  }
 
-  if (!user) {
-    router.push('/login');
-    return null;
-  }
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
+      const users: NearbyUser[] = [];
+      
+      for (const doc of snapshot.docs) {
+        if (doc.id === user.uid) continue; // Skip current user
+        
+        const userData = doc.data();
+        if (!userData.location || userData.ghostMode || !currentLocation) continue;
+
+        const distance = calculateDistance(
+          userData.location,
+          currentLocation
+        );
+
+        if (distance <= 100) { // Within 100 meters
+          users.push({
+            id: doc.id,
+            name: userData.name,
+            program: userData.program,
+            distance,
+            location: userData.location
+          });
+        }
+      }
+
+      // Sort by distance
+      users.sort((a, b) => a.distance - b.distance);
+      setNearbyUsers(users);
+    });
+
+    return () => {
+      stopLocationTracking();
+      unsubscribe();
+    };
+  }, [user, currentLocation]);
+
+  if (!user) return null;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-gray-100 p-6">
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl font-bold mb-8">Nearby Students</h1>
-        {error && <p className="text-red-600 mb-4">{error}</p>}
+      <div className="max-w-2xl mx-auto">
+        <h1 className="text-3xl font-bold mb-8 text-indigo-600">Nearby Students</h1>
         
-        {nearbyUsers.length === 0 ? (
-          <div className="bg-white bg-opacity-80 backdrop-blur-md rounded-2xl shadow-xl p-8 text-center">
-            <p className="text-gray-600">No one nearby right now. Check back soon!</p>
-          </div>
-        ) : (
-          <div className="grid gap-4">
-            {nearbyUsers.map((checkIn) => (
-              <div key={checkIn.uid} className="bg-white bg-opacity-80 backdrop-blur-md rounded-2xl shadow-xl p-6">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h3 className="font-semibold text-lg">Student at {checkIn.spot}</h3>
-                    <p className="text-gray-600 text-sm">
-                      Checked in {checkIn.createdAt?.toDate().toLocaleTimeString()}
-                    </p>
-                    <p className="text-sm text-indigo-600 mt-1">
-                      Crossed {crossCounts[checkIn.uid] || 0} times
-                    </p>
-                  </div>
-                  {/* For testing, always enable message button */}
-                  <button
-                    onClick={() => router.push(`/messages/${checkIn.uid}`)}
-                    className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition"
-                  >
-                    Message
-                  </button>
-                </div>
-              </div>
-            ))}
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+            {error}
           </div>
         )}
+
+        {isGhostMode && (
+          <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded mb-4">
+            You are in ghost mode. Other users cannot see you.
+          </div>
+        )}
+
+        <div className="space-y-4">
+          {nearbyUsers.length === 0 ? (
+            <div className="bg-white bg-opacity-80 backdrop-blur-md rounded-2xl shadow-xl p-6 text-center text-gray-600">
+              No nearby students found. Keep walking around campus to find matches!
+            </div>
+          ) : (
+            nearbyUsers.map((user) => (
+              <div
+                key={user.id}
+                className="bg-white bg-opacity-80 backdrop-blur-md rounded-2xl shadow-xl p-6"
+              >
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h2 className="text-xl font-semibold text-gray-900">{user.name}</h2>
+                    <p className="text-gray-600">{user.program}</p>
+                  </div>
+                  <span className="text-sm text-gray-500">
+                    {Math.round(user.distance)}m away
+                  </span>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </div>
     </div>
   );

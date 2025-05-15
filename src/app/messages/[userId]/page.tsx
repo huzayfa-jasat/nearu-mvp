@@ -12,10 +12,11 @@ interface Message {
   text: string;
   senderId: string;
   createdAt: Timestamp;
+  senderName?: string;
 }
 
 interface UserInfo {
-  displayName?: string;
+  name?: string;
   lastCheckin?: {
     spot: string;
     createdAt: Timestamp;
@@ -29,6 +30,7 @@ export default function MessagesPage({ params }: { params: Promise<{ userId: str
   const [newMessage, setNewMessage] = useState('');
   const [error, setError] = useState('');
   const [otherUserInfo, setOtherUserInfo] = useState<UserInfo | null>(null);
+  const [currentUserInfo, setCurrentUserInfo] = useState<UserInfo | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
@@ -39,8 +41,20 @@ export default function MessagesPage({ params }: { params: Promise<{ userId: str
   useEffect(() => {
     if (!user) return;
 
+    // Fetch current user's info
+    const fetchCurrentUserInfo = async () => {
+      try {
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        if (userDoc.exists()) {
+          setCurrentUserInfo(userDoc.data() as UserInfo);
+        }
+      } catch (e) {
+        console.error('Error fetching current user info:', e);
+      }
+    };
+
     // Fetch other user's info
-    const fetchUserInfo = async () => {
+    const fetchOtherUserInfo = async () => {
       try {
         const userDoc = await getDoc(doc(db, 'users', userId));
         if (userDoc.exists()) {
@@ -51,20 +65,35 @@ export default function MessagesPage({ params }: { params: Promise<{ userId: str
       }
     };
 
-    fetchUserInfo();
+    fetchCurrentUserInfo();
+    fetchOtherUserInfo();
 
     // Set up real-time messages listener
     const messagesRef = collection(db, 'messages');
     const q = query(
       messagesRef,
-      where('participants', '==', [user.uid, userId].sort().join('_')),
+      where('participants', 'array-contains', user.uid),
       orderBy('createdAt', 'asc')
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const newMessages: Message[] = [];
       snapshot.forEach((doc) => {
-        newMessages.push({ id: doc.id, ...doc.data() } as Message);
+        const data = doc.data();
+        // Only include messages where both UIDs are present in participants
+        if (
+          Array.isArray(data.participants) &&
+          data.participants.includes(user.uid) &&
+          data.participants.includes(userId)
+        ) {
+          const messageData = data as Message;
+          // Add sender name to each message
+          messageData.senderName =
+            messageData.senderId === user.uid
+              ? currentUserInfo?.name || 'You'
+              : otherUserInfo?.name || 'User';
+          newMessages.push({ ...messageData, id: doc.id });
+        }
       });
       setMessages(newMessages);
       scrollToBottom();
@@ -74,7 +103,7 @@ export default function MessagesPage({ params }: { params: Promise<{ userId: str
     });
 
     return () => unsubscribe();
-  }, [user, userId]);
+  }, [user, userId, currentUserInfo, otherUserInfo]);
 
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,7 +114,7 @@ export default function MessagesPage({ params }: { params: Promise<{ userId: str
       await addDoc(messagesRef, {
         text: newMessage.trim(),
         senderId: user.uid,
-        participants: [user.uid, userId].sort().join('_'),
+        participants: [user.uid, userId].sort(),
         createdAt: serverTimestamp(),
       });
 
@@ -122,7 +151,7 @@ export default function MessagesPage({ params }: { params: Promise<{ userId: str
           {otherUserInfo && (
             <div className="text-right">
               <h2 className="font-semibold">
-                {otherUserInfo.displayName || 'User'}
+                {otherUserInfo.name || 'User'}
               </h2>
               {otherUserInfo.lastCheckin && (
                 <p className="text-sm text-gray-600">
@@ -145,6 +174,9 @@ export default function MessagesPage({ params }: { params: Promise<{ userId: str
                   : 'bg-gray-100 text-gray-900'
               }`}
             >
+              <p className="text-sm font-semibold mb-1">
+                {message.senderName}
+              </p>
               <p>{message.text}</p>
               <p className="text-xs opacity-75 mt-1">
                 {message.createdAt?.toDate().toLocaleTimeString()}
