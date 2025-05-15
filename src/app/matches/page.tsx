@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/components/AuthProvider';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, doc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, getDoc, setDoc, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 import { startLocationTracking, stopLocationTracking } from '@/lib/location';
 import { calculateDistance } from '@/lib/location';
 import { Location } from '@/lib/types';
@@ -37,6 +37,7 @@ export default function MatchesPage() {
   const [crossingStates, setCrossingStates] = useState<Record<string, { events: PathCrossingEvent[]; lastProcessedTimestamp: number }>>({});
   const [loadingCrossings, setLoadingCrossings] = useState<Record<string, boolean>>({});
   const [matchRequested, setMatchRequested] = useState<Record<string, boolean>>({});
+  const [allUserDocs, setAllUserDocs] = useState<QueryDocumentSnapshot<DocumentData>[]>([]);
 
   useEffect(() => {
     if (!user) return;
@@ -156,6 +157,7 @@ export default function MatchesPage() {
       }
       users.sort((a, b) => a.distance - b.distance);
       setNearbyUsers(users);
+      setAllUserDocs(snapshot.docs);
     });
 
     return () => {
@@ -247,6 +249,32 @@ export default function MatchesPage() {
               );
             })
           )}
+        </div>
+
+        {/* Debug Panel: Show all users from Firestore query */}
+        <div className="mt-8 p-4 bg-yellow-100 rounded text-xs text-gray-800">
+          <h3 className="font-bold mb-2">Debug: All Users in Firestore (isActive: true)</h3>
+          <ul>
+            {allUserDocs.map((docSnap) => {
+              const userData = docSnap.data();
+              let reason = '';
+              if (docSnap.id === user.uid) reason = 'Filtered: This is you';
+              else if (!userData.location) reason = 'Filtered: No location';
+              else if (userData.ghostMode) reason = 'Filtered: Ghost mode';
+              else if (!currentLocation) reason = 'Filtered: No current location';
+              else if (calculateDistance(userData.location, currentLocation) > 100) reason = 'Filtered: Too far';
+              else reason = 'Included in Nearby Students';
+              return (
+                <li key={docSnap.id}>
+                  <div><strong>UID:</strong> {docSnap.id}</div>
+                  <div><strong>Name:</strong> {userData.name}</div>
+                  <div><strong>Location:</strong> {userData.location ? `${userData.location.latitude}, ${userData.location.longitude}` : 'N/A'}</div>
+                  <div><strong>Reason:</strong> {reason}</div>
+                  <hr />
+                </li>
+              );
+            })}
+          </ul>
         </div>
       </div>
     </div>
