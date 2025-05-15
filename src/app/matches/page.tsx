@@ -8,8 +8,7 @@ import { collection, query, where, onSnapshot, doc, getDoc, setDoc, QueryDocumen
 import { startLocationTracking, stopLocationTracking } from '@/lib/location';
 import { calculateDistance } from '@/lib/location';
 import { Location } from '@/lib/types';
-import { processPathCrossing, canUnlockChat, REQUIRED_CROSSINGS } from '@/lib/pathCrossing';
-import { createMatchRequest } from '@/lib/matchRequests';
+import { processPathCrossing } from '@/lib/pathCrossing';
 import type { PathCrossingEvent } from '@/lib/pathCrossing';
 
 interface NearbyUser {
@@ -36,7 +35,6 @@ export default function MatchesPage() {
   const [currentLocation, setCurrentLocation] = useState<Location | null>(null);
   const [crossingStates, setCrossingStates] = useState<Record<string, { events: PathCrossingEvent[]; lastProcessedTimestamp: number }>>({});
   const [loadingCrossings, setLoadingCrossings] = useState<Record<string, boolean>>({});
-  const [matchRequested, setMatchRequested] = useState<Record<string, boolean>>({});
   const [allUserDocs, setAllUserDocs] = useState<QueryDocumentSnapshot<DocumentData>[]>([]);
 
   useEffect(() => {
@@ -167,20 +165,6 @@ export default function MatchesPage() {
       // No longer set isActive to false on unmount
     };
   }, [user]);
-
-  const handleSendMatchRequest = async (otherUserId: string) => {
-    if (!user) return;
-    try {
-      await createMatchRequest({ 
-        fromUserId: user.uid, 
-        toUserId: otherUserId,
-        status: 'pending'
-      });
-      setMatchRequested((prev) => ({ ...prev, [otherUserId]: true }));
-    } catch {
-      setError('Failed to send match request.');
-    }
-  };
 
   if (!user) return null;
 
