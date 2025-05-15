@@ -171,7 +171,6 @@ export default function MatchesPage() {
           newLoadingCrossings[docSnap.id] = false;
           setLoadingCrossings({ ...newLoadingCrossings });
         }
-        <div><strong>userData JSON:</strong> {JSON.stringify(userData, null, 2)}</div>
       }
       console.log('Nearby users to be set:', users);
       users.sort((a, b) => a.distance - b.distance);
