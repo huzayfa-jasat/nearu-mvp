@@ -8,6 +8,7 @@ import { collection, query, where, onSnapshot, doc, getDoc, setDoc } from 'fireb
 import { startLocationTracking, stopLocationTracking } from '@/lib/location';
 import { calculateDistance } from '@/lib/location';
 import { Location } from '@/lib/types';
+import { useRouter } from 'next/navigation';
 
 interface NearbyUser {
   id: string;
@@ -27,11 +28,43 @@ interface UserData {
 
 export default function MatchesPage() {
   const { user } = useAuth();
+  const router = useRouter();
   const [nearbyUsers, setNearbyUsers] = useState<NearbyUser[]>([]);
   const [error, setError] = useState('');
   const [isGhostMode, setIsGhostMode] = useState(false);
   const [currentLocation, setCurrentLocation] = useState<Location | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Add auto-refresh effect with faster interval
+  useEffect(() => {
+    if (!user) return;
+    
+    const refreshInterval = setInterval(() => {
+      window.location.reload();
+    }, 10000); // Refresh every 10 seconds
+
+    return () => clearInterval(refreshInterval);
+  }, [user]);
+
+  // Update ghost mode in Firestore when it changes
+  useEffect(() => {
+    if (!user) return;
+
+    const updateGhostMode = async () => {
+      try {
+        await setDoc(doc(db, 'users', user.uid), {
+          ghostMode: isGhostMode,
+          isActive: !isGhostMode,
+          lastActive: new Date()
+        }, { merge: true });
+      } catch (error) {
+        console.error('Error updating ghost mode:', error);
+        setError('Failed to update ghost mode');
+      }
+    };
+
+    updateGhostMode();
+  }, [user, isGhostMode]);
 
   useEffect(() => {
     if (!user) return;
@@ -69,26 +102,22 @@ export default function MatchesPage() {
       try {
         setCurrentLocation(location);
         setIsLoading(false);
-        // Fetch program from Firestore
-        let name = 'Unknown';
-        let program = 'Unknown';
-        try {
-          const userDoc = await getDoc(doc(db, 'users', user.uid));
-          if (userDoc.exists()) {
-            const data = userDoc.data();
-            if (data.name) name = data.name;
-            if (data.program) program = data.program;
-          }
-        } catch (e) {
-          console.error('Error fetching name/program from Firestore:', e);
+        
+        // Get current user data first
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        if (!userDoc.exists()) {
+          setError('User profile not found');
+          return;
         }
-        // Update user's location in Firestore, always merging profile info
+        
+        const userData = userDoc.data();
+        // Update user's location in Firestore, preserving existing data
         await setDoc(doc(db, 'users', user.uid), {
           location,
           lastActive: new Date(),
           isActive: !isGhostMode,
-          name,
-          program,
+          name: userData.name || 'Unknown',
+          program: userData.program || 'Unknown',
           email: user.email || '',
         }, { merge: true });
       } catch (error) {
@@ -143,6 +172,10 @@ export default function MatchesPage() {
     };
   }, [user, currentLocation]);
 
+  const handleMessage = (userId: string) => {
+    router.push(`/messages/${userId}`);
+  };
+
   if (!user) return null;
 
   return (
@@ -150,16 +183,24 @@ export default function MatchesPage() {
       <div className="max-w-2xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-indigo-600">Nearby Students</h1>
-          <button
-            onClick={() => setIsGhostMode(!isGhostMode)}
-            className={`px-4 py-2 rounded-full text-sm font-medium ${
-              isGhostMode 
-                ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200' 
-                : 'bg-indigo-100 text-indigo-800 hover:bg-indigo-200'
-            }`}
-          >
-            {isGhostMode ? 'Ghost Mode: On' : 'Ghost Mode: Off'}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 rounded-full text-sm font-medium bg-indigo-100 text-indigo-800 hover:bg-indigo-200"
+            >
+              Refresh Now
+            </button>
+            <button
+              onClick={() => setIsGhostMode(!isGhostMode)}
+              className={`px-4 py-2 rounded-full text-sm font-medium ${
+                isGhostMode 
+                  ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200' 
+                  : 'bg-indigo-100 text-indigo-800 hover:bg-indigo-200'
+              }`}
+            >
+              {isGhostMode ? 'Ghost Mode: On' : 'Ghost Mode: Off'}
+            </button>
+          </div>
         </div>
         
         {error && (
@@ -206,7 +247,7 @@ export default function MatchesPage() {
                   </div>
                   <button 
                     className="mt-3 w-full bg-indigo-100 text-indigo-800 px-4 py-2 rounded-full hover:bg-indigo-200"
-                    onClick={() => {/* TODO: Implement messaging */}}
+                    onClick={() => handleMessage(user.id)}
                   >
                     Message
                   </button>
