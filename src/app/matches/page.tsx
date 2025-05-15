@@ -73,22 +73,24 @@ export default function MatchesPage() {
       try {
         setCurrentLocation(location);
         // Fetch program from Firestore
+        let name = 'Unknown';
         let program = 'Unknown';
         try {
           const userDoc = await getDoc(doc(db, 'users', user.uid));
           if (userDoc.exists()) {
             const data = userDoc.data();
+            if (data.name) name = data.name;
             if (data.program) program = data.program;
           }
         } catch (e) {
-          console.error('Error fetching program from Firestore:', e);
+          console.error('Error fetching name/program from Firestore:', e);
         }
         // Update user's location in Firestore, always merging profile info
         await setDoc(doc(db, 'users', user.uid), {
           location,
           lastActive: new Date(),
           isActive: !isGhostMode,
-          name: user.displayName || 'Unknown',
+          name,
           program,
           email: user.email || '',
         }, { merge: true });
@@ -121,10 +123,11 @@ export default function MatchesPage() {
         if (!userData.location || userData.ghostMode || !currentLocation) continue;
         const distance = calculateDistance(userData.location, currentLocation);
         if (distance <= 100) {
+          console.log('userData:', userData, 'docSnap.id:', docSnap.id);
           users.push({
             id: docSnap.id,
-            name: userData.name,
-            program: userData.program,
+            name: userData.name || 'Unknown',
+            program: userData.program || 'Unknown',
             distance,
             location: userData.location
           });
@@ -151,6 +154,7 @@ export default function MatchesPage() {
             newLoadingCrossings[docSnap.id] = false;
             setLoadingCrossings({ ...newLoadingCrossings });
           }
+          <div><strong>userData JSON:</strong> {JSON.stringify(userData, null, 2)}</div>
         }
       }
       console.log('Nearby users to be set:', users);
@@ -220,6 +224,7 @@ export default function MatchesPage() {
                   <div><strong>Name:</strong> {userData.name}</div>
                   <div><strong>Location:</strong> {userData.location ? `${userData.location.latitude}, ${userData.location.longitude}` : 'N/A'}</div>
                   <div><strong>Reason:</strong> {reason}</div>
+                  <div><strong>userData JSON:</strong> {JSON.stringify(userData, null, 2)}</div>
                   <hr />
                 </li>
               );
