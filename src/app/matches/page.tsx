@@ -48,6 +48,18 @@ export default function MatchesPage() {
         if (userDoc.exists()) {
           const data = userDoc.data();
           setIsGhostMode(data.ghostMode || false);
+          // If ghost mode is on, set isActive to false
+          if (data.ghostMode) {
+            await setDoc(doc(db, 'users', user.uid), {
+              isActive: false,
+              lastActive: new Date()
+            }, { merge: true });
+          } else {
+            await setDoc(doc(db, 'users', user.uid), {
+              isActive: true,
+              lastActive: new Date()
+            }, { merge: true });
+          }
         }
       } catch (error) {
         console.error('Error checking ghost mode:', error);
@@ -65,7 +77,7 @@ export default function MatchesPage() {
         await setDoc(doc(db, 'users', user.uid), {
           location,
           lastActive: new Date(),
-          isActive: true
+          isActive: !isGhostMode
         }, { merge: true });
       } catch (error) {
         console.error('Error updating location:', error);
@@ -135,11 +147,7 @@ export default function MatchesPage() {
     return () => {
       stopLocationTracking();
       unsubscribe();
-      // Set user as inactive when leaving the page
-      setDoc(doc(db, 'users', user.uid), {
-        isActive: false,
-        lastActive: new Date()
-      }, { merge: true }).catch(console.error);
+      // No longer set isActive to false on unmount
     };
   }, [user]);
 
