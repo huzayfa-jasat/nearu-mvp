@@ -20,6 +20,14 @@ interface NearbyUser {
   location: Location;
 }
 
+interface UserData {
+  name: string;
+  program: string;
+  location: Location;
+  ghostMode?: boolean;
+  isActive?: boolean;
+}
+
 export default function MatchesPage() {
   const { user } = useAuth();
   const [nearbyUsers, setNearbyUsers] = useState<NearbyUser[]>([]);
@@ -41,8 +49,9 @@ export default function MatchesPage() {
           const data = userDoc.data();
           setIsGhostMode(data.ghostMode || false);
         }
-      } catch  {
-        console.error('Error checking ghost mode:');
+      } catch (error) {
+        console.error('Error checking ghost mode:', error);
+        setError('Failed to check ghost mode status');
       }
     };
 
@@ -55,10 +64,11 @@ export default function MatchesPage() {
         // Update user's location in Firestore
         await setDoc(doc(db, 'users', user.uid), {
           location,
-          lastActive: new Date()
+          lastActive: new Date(),
+          isActive: true
         }, { merge: true });
-      } catch  {
-        console.error('Error updating location');
+      } catch (error) {
+        console.error('Error updating location:', error);
         setError('Failed to update location');
       }
     };
@@ -82,7 +92,7 @@ export default function MatchesPage() {
       const newLoadingCrossings: Record<string, boolean> = { ...loadingCrossings };
       for (const docSnap of snapshot.docs) {
         if (docSnap.id === user.uid) continue;
-        const userData = docSnap.data();
+        const userData = docSnap.data() as UserData;
         if (!userData.location || userData.ghostMode || !currentLocation) continue;
         const distance = calculateDistance(userData.location, currentLocation);
         if (distance <= 100) {
@@ -125,13 +135,22 @@ export default function MatchesPage() {
     return () => {
       stopLocationTracking();
       unsubscribe();
+      // Set user as inactive when leaving the page
+      setDoc(doc(db, 'users', user.uid), {
+        isActive: false,
+        lastActive: new Date()
+      }, { merge: true }).catch(console.error);
     };
-  }, [user, currentLocation, crossingStates, loadingCrossings]);
+  }, [user]);
 
   const handleSendMatchRequest = async (otherUserId: string) => {
     if (!user) return;
     try {
-      await createMatchRequest({ fromUserId: user.uid, toUserId: otherUserId });
+      await createMatchRequest({ 
+        fromUserId: user.uid, 
+        toUserId: otherUserId,
+        status: 'pending'
+      });
       setMatchRequested((prev) => ({ ...prev, [otherUserId]: true }));
     } catch {
       setError('Failed to send match request.');
