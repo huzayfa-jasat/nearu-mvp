@@ -4,8 +4,8 @@ import { TEST_MODE } from './testMode';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
-const MAX_CROSSING_DISTANCE = 5; // meters - for testing
-const DEBOUNCE_TIME = TEST_MODE ? 500 : 5000; // 500ms in test mode, 5s otherwise
+const MAX_CROSSING_DISTANCE = 2; // meters - for testing
+const DEBOUNCE_TIME = 0//TEST_MODE ? 500 : 5000; // 500ms in test mode, 5s otherwise
 
 export interface PathCrossingEvent {
   userId: string;
@@ -72,7 +72,7 @@ export const getCrossingCount = (events: PathCrossingEvent[], userId: string): n
   return events.filter(event => event.userId === userId).length;
 };
 
-export const REQUIRED_CROSSINGS = 3;
+export const REQUIRED_CROSSINGS = 1;
 
 export const canUnlockChat = (events: PathCrossingEvent[], userId: string): boolean => {
   const crossings = getCrossingCount(events, userId);

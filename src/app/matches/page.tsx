@@ -73,11 +73,25 @@ export default function MatchesPage() {
     const handleLocationUpdate = async (location: Location) => {
       try {
         setCurrentLocation(location);
-        // Update user's location in Firestore
+        // Fetch program from Firestore
+        let program = 'Unknown';
+        try {
+          const userDoc = await getDoc(doc(db, 'users', user.uid));
+          if (userDoc.exists()) {
+            const data = userDoc.data();
+            if (data.program) program = data.program;
+          }
+        } catch (e) {
+          console.error('Error fetching program from Firestore:', e);
+        }
+        // Update user's location in Firestore, always merging profile info
         await setDoc(doc(db, 'users', user.uid), {
           location,
           lastActive: new Date(),
-          isActive: !isGhostMode
+          isActive: !isGhostMode,
+          name: user.displayName || 'Unknown',
+          program,
+          email: user.email || '',
         }, { merge: true });
       } catch (error) {
         console.error('Error updating location:', error);
