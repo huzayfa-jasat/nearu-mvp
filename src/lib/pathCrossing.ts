@@ -4,7 +4,7 @@ import { TEST_MODE } from './testMode';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
-const MAX_CROSSING_DISTANCE = 2; // meters - for testing
+const MAX_CROSSING_DISTANCE = 10; // meters - for testing
 const DEBOUNCE_TIME = 0//TEST_MODE ? 500 : 5000; // 500ms in test mode, 5s otherwise
 
 export interface PathCrossingEvent {
