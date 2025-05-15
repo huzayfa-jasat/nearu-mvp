@@ -42,7 +42,7 @@ export default function MatchesPage() {
           setIsGhostMode(data.ghostMode || false);
         }
       } catch  {
-        console.error('Error checking ghost mode:', e);
+        console.error('Error checking ghost mode:');
       }
     };
 
@@ -58,7 +58,7 @@ export default function MatchesPage() {
           lastActive: new Date()
         }, { merge: true });
       } catch  {
-        console.error('Error updating location:', e);
+        console.error('Error updating location');
         setError('Failed to update location');
       }
     };
