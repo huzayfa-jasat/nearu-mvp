@@ -1,7 +1,7 @@
 import { Location } from './types';
 
-const LOCATION_ACCURACY = 10; // meters
-const MAX_LOCATION_AGE = 30000; // 30 seconds
+const LOCATION_ACCURACY = 20; // meters
+const MAX_LOCATION_AGE = 60000; // 1 minute
 
 let watchId: number | null = null;
 let lastLocation: Location | null = null;

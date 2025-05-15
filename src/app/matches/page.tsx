@@ -221,6 +221,12 @@ export default function MatchesPage() {
                       {Math.round(user.distance)}m away
                     </span>
                   </div>
+                  {/* Debug Info */}
+                  <div className="mt-2 p-2 bg-gray-100 rounded text-xs text-gray-700">
+                    <div><strong>My Location:</strong> {currentLocation ? `${currentLocation.latitude.toFixed(14)}, ${currentLocation.longitude.toFixed(14)}` : 'N/A'}</div>
+                    <div><strong>User Location:</strong> {user.location.latitude.toFixed(14)}, {user.location.longitude.toFixed(14)}</div>
+                    <div><strong>Distance:</strong> {user.distance.toFixed(2)} meters</div>
+                  </div>
                   {canMatch && !matchRequested[user.id] && (
                     <button
                       className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
