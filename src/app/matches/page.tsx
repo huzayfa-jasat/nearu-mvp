@@ -10,6 +10,7 @@ import { calculateDistance } from '@/lib/location';
 import { Location } from '@/lib/types';
 import { processPathCrossing, canUnlockChat, REQUIRED_CROSSINGS } from '@/lib/pathCrossing';
 import { createMatchRequest } from '@/lib/matchRequests';
+import type { PathCrossingEvent } from '@/lib/pathCrossing';
 
 interface NearbyUser {
   id: string;
@@ -25,7 +26,7 @@ export default function MatchesPage() {
   const [error, setError] = useState('');
   const [isGhostMode, setIsGhostMode] = useState(false);
   const [currentLocation, setCurrentLocation] = useState<Location | null>(null);
-  const [crossingStates, setCrossingStates] = useState<Record<string, { events: any[]; lastProcessedTimestamp: number }>>({});
+  const [crossingStates, setCrossingStates] = useState<Record<string, { events: PathCrossingEvent[]; lastProcessedTimestamp: number }>>({});
   const [loadingCrossings, setLoadingCrossings] = useState<Record<string, boolean>>({});
   const [matchRequested, setMatchRequested] = useState<Record<string, boolean>>({});
 
@@ -40,7 +41,7 @@ export default function MatchesPage() {
           const data = userDoc.data();
           setIsGhostMode(data.ghostMode || false);
         }
-      } catch (e) {
+      } catch  {
         console.error('Error checking ghost mode:', e);
       }
     };
@@ -56,7 +57,7 @@ export default function MatchesPage() {
           location,
           lastActive: new Date()
         }, { merge: true });
-      } catch (e) {
+      } catch  {
         console.error('Error updating location:', e);
         setError('Failed to update location');
       }
@@ -77,7 +78,7 @@ export default function MatchesPage() {
 
     const unsubscribe = onSnapshot(q, async (snapshot) => {
       const users: NearbyUser[] = [];
-      const newCrossingStates: Record<string, { events: any[]; lastProcessedTimestamp: number }> = { ...crossingStates };
+      const newCrossingStates: Record<string, { events: PathCrossingEvent[]; lastProcessedTimestamp: number }> = { ...crossingStates };
       const newLoadingCrossings: Record<string, boolean> = { ...loadingCrossings };
       for (const docSnap of snapshot.docs) {
         if (docSnap.id === user.uid) continue;
@@ -125,14 +126,14 @@ export default function MatchesPage() {
       stopLocationTracking();
       unsubscribe();
     };
-  }, [user, currentLocation]);
+  }, [user, currentLocation, crossingStates, loadingCrossings]);
 
   const handleSendMatchRequest = async (otherUserId: string) => {
     if (!user) return;
     try {
       await createMatchRequest({ fromUserId: user.uid, toUserId: otherUserId });
       setMatchRequested((prev) => ({ ...prev, [otherUserId]: true }));
-    } catch (e) {
+    } catch {
       setError('Failed to send match request.');
     }
   };
