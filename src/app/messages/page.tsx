@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { auth, db } from '@/lib/firebase';
-import { collection, query, where, orderBy, onSnapshot, Timestamp, getDoc, doc } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, Timestamp, getDoc, doc, getDocs } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 
 interface Chat {
@@ -29,6 +29,7 @@ export default function MessagesPage() {
   const [user, loading] = useAuthState(auth);
   const [chats, setChats] = useState<Chat[]>([]);
   const [error, setError] = useState('');
+  const [unreadChatIds, setUnreadChatIds] = useState<Set<string>>(new Set());
   const router = useRouter();
 
   useEffect(() => {
@@ -87,6 +88,27 @@ export default function MessagesPage() {
     return () => unsubscribe();
   }, [user]);
 
+  // Fetch unread notifications for badge
+  useEffect(() => {
+    if (!user) return;
+    const fetchUnread = async () => {
+      const notificationsRef = collection(db, 'users', user.uid, 'notifications');
+      const q = query(
+        notificationsRef,
+        where('type', '==', 'message'),
+        where('read', '==', false)
+      );
+      const snapshot = await getDocs(q);
+      const chatIds = new Set<string>();
+      snapshot.forEach(docSnap => {
+        const data = docSnap.data();
+        if (data.chatId) chatIds.add(data.chatId);
+      });
+      setUnreadChatIds(chatIds);
+    };
+    fetchUnread();
+  }, [user]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -122,9 +144,13 @@ export default function MessagesPage() {
             {chats.map((chat) => (
               <div
                 key={chat.id}
-                className="bg-white bg-opacity-80 backdrop-blur-md rounded-2xl shadow-xl p-6 cursor-pointer hover:bg-opacity-90 transition"
+                className="bg-white bg-opacity-80 backdrop-blur-md rounded-2xl shadow-xl p-6 cursor-pointer hover:bg-opacity-90 transition relative"
                 onClick={() => router.push(`/messages/${chat.id}`)}
               >
+                {/* Unread badge */}
+                {unreadChatIds.has([user?.uid, chat.id].sort().join('_')) && (
+                  <span className="absolute top-3 right-3 w-3 h-3 bg-red-500 rounded-full"></span>
+                )}
                 <div className="flex justify-between items-center">
                   <div>
                     <h3 className="font-semibold text-lg text-indigo-600">{chat.otherUser.name}</h3>

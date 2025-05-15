@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { auth, db } from '@/lib/firebase';
-import { collection, query, orderBy, addDoc, serverTimestamp, onSnapshot, where, Timestamp, doc, getDoc } from 'firebase/firestore';
+import { collection, query, orderBy, addDoc, serverTimestamp, onSnapshot, where, Timestamp, doc, getDoc, setDoc, getDocs, updateDoc } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { use } from 'react';
 
@@ -40,6 +40,22 @@ export default function MessagesPage({ params }: { params: Promise<{ userId: str
 
   useEffect(() => {
     if (!user) return;
+
+    // Mark notifications for this chat as read
+    const markNotificationsAsRead = async () => {
+      const notificationsRef = collection(db, 'users', user.uid, 'notifications');
+      const q = query(
+        notificationsRef,
+        where('type', '==', 'message'),
+        where('chatId', '==', [user.uid, userId].sort().join('_')),
+        where('read', '==', false)
+      );
+      const snapshot = await getDocs(q);
+      for (const docSnap of snapshot.docs) {
+        await updateDoc(docSnap.ref, { read: true });
+      }
+    };
+    markNotificationsAsRead();
 
     // Fetch current user's info
     const fetchCurrentUserInfo = async () => {
@@ -111,11 +127,22 @@ export default function MessagesPage({ params }: { params: Promise<{ userId: str
 
     try {
       const messagesRef = collection(db, 'messages');
-      await addDoc(messagesRef, {
+      const messageDoc = await addDoc(messagesRef, {
         text: newMessage.trim(),
         senderId: user.uid,
         participants: [user.uid, userId].sort(),
         createdAt: serverTimestamp(),
+      });
+
+      // Add notification for the recipient
+      const notificationRef = doc(collection(db, 'users', userId, 'notifications'));
+      await setDoc(notificationRef, {
+        type: 'message',
+        from: user.uid,
+        chatId: [user.uid, userId].sort().join('_'),
+        messageId: messageDoc.id,
+        timestamp: serverTimestamp(),
+        read: false
       });
 
       setNewMessage('');

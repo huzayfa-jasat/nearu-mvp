@@ -3,9 +3,32 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { MessageSquare, Users, Settings } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { auth, db } from '@/lib/firebase';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
+
+// Hook to listen for unread message notifications
+function useUnreadMessages() {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) return;
+    const q = query(
+      collection(db, 'users', user.uid, 'notifications'),
+      where('type', '==', 'message'),
+      where('read', '==', false)
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setCount(snapshot.size);
+    });
+    return () => unsubscribe();
+  }, []);
+  return count;
+}
 
 export default function Navigation() {
   const pathname = usePathname();
+  const unreadCount = useUnreadMessages();
 
   const isActive = (path: string) => pathname === path;
 
@@ -28,7 +51,12 @@ export default function Navigation() {
             isActive('/messages') ? 'text-indigo-600' : 'text-gray-600 hover:text-indigo-600'
           }`}
         >
-          <MessageSquare className="w-6 h-6" />
+          <div className="relative">
+            <MessageSquare className="w-6 h-6" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-3 h-3 flex items-center justify-center text-[10px] font-bold"></span>
+            )}
+          </div>
           <span className="text-xs mt-1">Messages</span>
         </Link>
 

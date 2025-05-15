@@ -109,15 +109,16 @@ export default function MatchesPage() {
           setError('User profile not found');
           return;
         }
-        
         const userData = userDoc.data();
-        // Update user's location in Firestore, preserving existing data
+        // Only update name/program if they exist, never overwrite with 'Unknown'
+        const name = userData.name ? userData.name : undefined;
+        const program = userData.program ? userData.program : undefined;
         await setDoc(doc(db, 'users', user.uid), {
           location,
           lastActive: new Date(),
           isActive: !isGhostMode,
-          name: userData.name || 'Unknown',
-          program: userData.program || 'Unknown',
+          ...(name && { name }),
+          ...(program && { program }),
           email: user.email || '',
         }, { merge: true });
       } catch (error) {
@@ -164,11 +165,6 @@ export default function MatchesPage() {
     return () => {
       stopLocationTracking();
       unsubscribe();
-      // Set isActive to false when component unmounts
-      setDoc(doc(db, 'users', user.uid), {
-        isActive: false,
-        lastActive: new Date()
-      }, { merge: true });
     };
   }, [user, currentLocation]);
 

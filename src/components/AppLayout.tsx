@@ -4,6 +4,9 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Navigation from './Navigation';
 import { getCurrentLocation } from '@/lib/location';
+import { useAuth } from './AuthProvider';
+import { useFCMToken } from '@/hooks/useFCMToken';
+import { useInAppFCMNotification } from '@/hooks/useInAppFCMNotification';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -12,6 +15,10 @@ interface AppLayoutProps {
 export default function AppLayout({ children }: AppLayoutProps) {
   const [showLocationPrompt, setShowLocationPrompt] = useState(false);
   const router = useRouter();
+  const { user } = useAuth();
+
+  useFCMToken(user);
+  useInAppFCMNotification();
 
   useEffect(() => {
     const checkLocationPermission = async () => {
