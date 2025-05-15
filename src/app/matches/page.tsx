@@ -36,6 +36,7 @@ export default function MatchesPage() {
   const [crossingStates, setCrossingStates] = useState<Record<string, { events: PathCrossingEvent[]; lastProcessedTimestamp: number }>>({});
   const [loadingCrossings, setLoadingCrossings] = useState<Record<string, boolean>>({});
   const [allUserDocs, setAllUserDocs] = useState<QueryDocumentSnapshot<DocumentData>[]>([]);
+  const [debugUsers, setDebugUsers] = useState<NearbyUser[]>([]);
 
   useEffect(() => {
     if (!user) return;
@@ -118,82 +119,24 @@ export default function MatchesPage() {
       const newCrossingStates: Record<string, { events: PathCrossingEvent[]; lastProcessedTimestamp: number }> = { ...crossingStates };
       const newLoadingCrossings: Record<string, boolean> = { ...loadingCrossings };
       
-      // Add debug info about snapshot
-      console.log('Snapshot received with', snapshot.docs.length, 'docs');
-      
       for (const docSnap of snapshot.docs) {
-        // Debug each user being processed
-        console.log('Processing user:', docSnap.id);
-        
-        if (docSnap.id === user.uid) {
-          console.log('Skipping self:', docSnap.id);
-          continue;
-        }
-        
+        if (docSnap.id === user.uid) continue;
         const userData = docSnap.data() as UserData;
-        console.log('User data:', {
-          id: docSnap.id,
-          name: userData.name,
-          hasLocation: !!userData.location,
-          isGhostMode: userData.ghostMode,
-          hasCurrentLocation: !!currentLocation
-        });
-        
-        if (!userData.location) {
-          console.log('Skipping, no location:', docSnap.id);
-          continue;
-        }
-        if (userData.ghostMode) {
-          console.log('Skipping, ghost mode:', docSnap.id);
-          continue;
-        }
-        if (!currentLocation) {
-          console.log('Skipping, no current location');
-          continue;
-        }
-        
+        if (!userData.location || userData.ghostMode || !currentLocation) continue;
         const distance = calculateDistance(userData.location, currentLocation);
-        console.log('Distance calculated:', distance, 'for user:', docSnap.id);
-        
-        if (distance > 100) {
-          console.log('Skipping, too far:', docSnap.id, distance);
-          continue;
-        }
-        
-        console.log('Adding user to nearbyUsers:', docSnap.id);
-        users.push({
-          id: docSnap.id,
-          name: userData.name || 'Unknown',
-          program: userData.program || 'Unknown',
-          distance,
-          location: userData.location
-        });
-        
-        // Load and update crossing events for this user
-        if (!crossingStates[docSnap.id] && !loadingCrossings[docSnap.id]) {
-          newLoadingCrossings[docSnap.id] = true;
-          setLoadingCrossings({ ...newLoadingCrossings });
-          // Load events from Firestore
-          const pairId = [user.uid, docSnap.id].sort().join('_');
-          const crossingRef = doc(db, 'pathCrossings', pairId);
-          const crossingDoc = await getDoc(crossingRef);
-          const events = crossingDoc.exists() ? crossingDoc.data().events || [] : [];
-          // Process crossing
-          const state = { events, lastProcessedTimestamp: 0 };
-          const newState = await processPathCrossing(
-            user.uid,
-            docSnap.id,
-            currentLocation,
-            userData.location,
-            state
-          );
-          newCrossingStates[docSnap.id] = newState;
-          setCrossingStates({ ...newCrossingStates });
-          newLoadingCrossings[docSnap.id] = false;
-          setLoadingCrossings({ ...newLoadingCrossings });
+        if (distance <= 100) {
+          const newUser = {
+            id: docSnap.id,
+            name: userData.name || 'Unknown',
+            program: userData.program || 'Unknown',
+            distance,
+            location: userData.location
+          };
+          users.push(newUser);
+          // Debug the exact user object being pushed
+          setDebugUsers(prev => [...prev, { ...newUser, timestamp: Date.now() }]);
         }
       }
-      console.log('Nearby users to be set:', users);
       users.sort((a, b) => a.distance - b.distance);
       setNearbyUsers(users);
       setAllUserDocs(snapshot.docs);
@@ -202,9 +145,8 @@ export default function MatchesPage() {
     return () => {
       stopLocationTracking();
       unsubscribe();
-      // No longer set isActive to false on unmount
     };
-  }, [user]);
+  }, [user, currentLocation]);
 
   if (!user) return null;
 
@@ -308,6 +250,7 @@ export default function MatchesPage() {
               );
             })}
           </div>
+          <div><strong>Debug Users Array:</strong> {JSON.stringify(debugUsers, null, 2)}</div>
         </div>
 
         <button onClick={() => window.location.reload()}>Refresh Location</button>
