@@ -41,7 +41,7 @@ export default function MatchesPage() {
     
     const refreshInterval = setInterval(() => {
       window.location.reload();
-    }, 10000); // Refresh every 10 seconds
+    }, 60000); // Refresh every 1 minute
 
     return () => clearInterval(refreshInterval);
   }, [user]);
@@ -148,7 +148,7 @@ export default function MatchesPage() {
         const userData = docSnap.data() as UserData;
         if (!userData.location || userData.ghostMode || !currentLocation) continue;
         const distance = calculateDistance(userData.location, currentLocation);
-        if (distance <= 100) {
+        if (distance <= 500) {
           users.push({
             id: docSnap.id,
             name: userData.name || 'Unknown',

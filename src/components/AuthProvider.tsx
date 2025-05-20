@@ -34,6 +34,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         router.push('/login');
       } else if (user && publicPaths.includes(pathname)) {
         router.push('/matches');
+      } else if (user && !user.emailVerified && !publicPaths.includes(pathname)) {
+        // Redirect to login if email is not verified
+        router.push('/login?error=Please verify your email to continue');
       }
     });
 

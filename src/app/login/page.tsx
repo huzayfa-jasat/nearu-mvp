@@ -60,19 +60,10 @@ export default function LoginPage() {
       const user = userCredential.user;
       
       if (!user.emailVerified) {
-        if (TEST_MODE) {
-          // In test mode, auto-verify the email
-          await setDoc(doc(db, 'users', user.uid), {
-            emailVerified: true
-          }, { merge: true });
-          setIsLoading(false);
-          router.push('/matches');
-        } else {
-          setError('Please verify your email before signing in.');
-          await sendEmailVerification(user);
-          setSuccess('A new verification email has been sent. Please check your inbox.');
-          setIsLoading(false);
-        }
+        await sendEmailVerification(user);
+        setError('Please verify your email before signing in. A new verification email has been sent.');
+        await auth.signOut(); // Sign out the unverified user
+        setIsLoading(false);
         return;
       }
       
