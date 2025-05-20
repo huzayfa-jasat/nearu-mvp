@@ -25,7 +25,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      // Force reload if user is logged in but not verified
+      if (user && !user.emailVerified) {
+        await user.reload();
+        user = auth.currentUser;
+      }
       setUser(user);
       setLoading(false);
 

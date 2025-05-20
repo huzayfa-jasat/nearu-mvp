@@ -123,7 +123,6 @@ export default function LoginPage() {
         program: program.trim(),
         email: email,
         createdAt: new Date(),
-        emailVerified: TEST_MODE, // Auto-verify in test mode
         lastActive: new Date(),
         isActive: true
       });
