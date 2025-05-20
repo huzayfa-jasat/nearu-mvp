@@ -122,6 +122,7 @@ export default function SettingsPage() {
                             await sendEmailVerification(user);
                             setSuccess('Verification email sent! Please check your inbox.');
                           } catch (error) {
+                            console.error('Verification email error:', error);
                             setError('Failed to send verification email. Please try again.');
                           }
                         }

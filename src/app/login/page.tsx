@@ -189,6 +189,29 @@ export default function LoginPage() {
     }
   };
 
+  if (auth.currentUser && !auth.currentUser.emailVerified) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div>
+          <p className="text-red-600 mb-4">
+            Please verify your email to continue. Check your inbox for a verification link.
+          </p>
+          <button
+            onClick={async () => {
+              if (auth.currentUser) {
+                await sendEmailVerification(auth.currentUser);
+                alert('Verification email sent!');
+              }
+            }}
+            className="bg-indigo-600 text-white px-4 py-2 rounded"
+          >
+            Resend Verification Email
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-white to-gray-100 p-6">
       <div className="bg-white bg-opacity-80 backdrop-blur-md rounded-2xl shadow-xl p-8 max-w-md w-full">
