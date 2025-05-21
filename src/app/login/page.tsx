@@ -54,9 +54,12 @@ export default function LoginPage() {
     }
 
     try {
+      const auth = getAuth();
       await signInWithEmailAndPassword(auth, email, password);
       setIsLoading(false);
-      router.push('/matches');
+      if (auth.currentUser) {
+        router.push('/matches');
+      }
     } catch (error) {
       const authError = error as AuthError;
       switch (authError.code) {
@@ -114,10 +117,11 @@ export default function LoginPage() {
           lastActive: new Date(),
           isActive: true
         });
+        setSuccess('Account created successfully! You can now sign in.');
+        setMode('signin');
+      } else {
+        setError('Account created, but user not found. Please try signing in.');
       }
-
-      setSuccess('Account created successfully! You can now sign in.');
-      setMode('signin');
       setIsLoading(false);
     } catch (error) {
       const authError = error as AuthError;

@@ -26,22 +26,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      // Force reload if user is logged in but not verified
-      if (user && !user.emailVerified) {
-        await user.reload();
-        user = auth.currentUser;
-      }
-      setUser(user);
-      setLoading(false);
+      try {
+        // Force reload if user is logged in but not verified
+        if (user && !user.emailVerified) {
+          await user.reload();
+          user = auth.currentUser;
+        }
+        setUser(user);
+        setLoading(false);
 
-      // Handle routing based on auth state
-      if (!user && !publicPaths.includes(pathname)) {
-        router.push('/login');
-      } else if (user && publicPaths.includes(pathname)) {
-        router.push('/matches');
-      } else if (user && !user.emailVerified && !publicPaths.includes(pathname)) {
-        // Redirect to login if email is not verified
-        router.push('/login?error=Please verify your email to continue');
+        // Handle routing based on auth state
+        if (!user && !publicPaths.includes(pathname)) {
+          router.push('/login');
+        } else if (user && publicPaths.includes(pathname)) {
+          router.push('/matches');
+        } else if (user && !user.emailVerified && !publicPaths.includes(pathname)) {
+          // Redirect to login if email is not verified
+          router.push('/login?error=Please verify your email to continue');
+        }
+      } catch {
+        setUser(null);
+        setLoading(false);
       }
     });
 

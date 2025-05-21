@@ -207,7 +207,13 @@ export default function MatchesPage() {
     router.push(`/messages/${userId}`);
   };
 
-  if (!user) return null;
+  if (!user || !currentLocation) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p>Loading...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-gray-100 p-6">
