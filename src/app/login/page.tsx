@@ -8,12 +8,10 @@ import {
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
   sendPasswordResetEmail,
-  sendEmailVerification,
   getAuth,
   AuthError 
 } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
-import { TEST_MODE } from '@/lib/testMode';
 
 type AuthMode = 'signin' | 'signup';
 
@@ -56,17 +54,7 @@ export default function LoginPage() {
     }
 
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-      
-      if (!user.emailVerified) {
-        await sendEmailVerification(user);
-        setError('Please verify your email before signing in. A new verification email has been sent.');
-        await auth.signOut(); // Sign out the unverified user
-        setIsLoading(false);
-        return;
-      }
-      
+      await signInWithEmailAndPassword(auth, email, password);
       setIsLoading(false);
       router.push('/matches');
     } catch (error) {
@@ -114,41 +102,23 @@ export default function LoginPage() {
 
     try {
       const auth = getAuth();
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
+      await createUserWithEmailAndPassword(auth, email, password);
 
       // Store additional user data in Firestore
-      await setDoc(doc(db, 'users', user.uid), {
-        name: name.trim(),
-        program: program.trim(),
-        email: email,
-        createdAt: new Date(),
-        lastActive: new Date(),
-        isActive: true
-      });
-
-      if (TEST_MODE) {
-        setSuccess('Account created successfully! You can now sign in.');
-        setMode('signin');
-        setIsLoading(false);
-      } else {
-        // Send verification email
-        try {
-          if (user) {
-            await sendEmailVerification(user);
-            console.log('Verification email sent successfully to:', user.email);
-            setSuccess('Account created successfully! Please check your email to verify your account before signing in.');
-            setMode('signin');
-          } else {
-            console.error('No user found after creation');
-            setError('Account created but user not found. Please try signing in.');
-          }
-        } catch (verificationError) {
-          console.error('Error sending verification email:', verificationError);
-          setError('Account created but failed to send verification email. Please try signing in to resend verification.');
-        }
-        setIsLoading(false);
+      if (auth.currentUser) {
+        await setDoc(doc(db, 'users', auth.currentUser.uid), {
+          name: name.trim(),
+          program: program.trim(),
+          email: email,
+          createdAt: new Date(),
+          lastActive: new Date(),
+          isActive: true
+        });
       }
+
+      setSuccess('Account created successfully! You can now sign in.');
+      setMode('signin');
+      setIsLoading(false);
     } catch (error) {
       const authError = error as AuthError;
       switch (authError.code) {
@@ -188,29 +158,6 @@ export default function LoginPage() {
       setIsLoading(false);
     }
   };
-
-  if (auth.currentUser && !auth.currentUser.emailVerified) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div>
-          <p className="text-red-600 mb-4">
-            Please verify your email to continue. Check your inbox for a verification link.
-          </p>
-          <button
-            onClick={async () => {
-              if (auth.currentUser) {
-                await sendEmailVerification(auth.currentUser);
-                alert('Verification email sent!');
-              }
-            }}
-            className="bg-indigo-600 text-white px-4 py-2 rounded"
-          >
-            Resend Verification Email
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-white to-gray-100 p-6">

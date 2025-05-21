@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { useAuth } from '@/components/AuthProvider';
-import { sendEmailVerification } from 'firebase/auth';
 
 interface UserSettings {
   ghostMode: boolean;
@@ -17,7 +16,6 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [settings, setSettings] = useState<UserSettings>({ ghostMode: false });
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const router = useRouter();
 
   useEffect(() => {
@@ -96,7 +94,6 @@ export default function SettingsPage() {
       <div className="max-w-2xl mx-auto">
         <h1 className="text-3xl font-bold mb-8 text-indigo-600">Settings</h1>
         {error && <p className="text-red-600 mb-4">{error}</p>}
-        {success && <p className="text-green-600 mb-4">{success}</p>}
         
         {/* Profile Section */}
         <div className="mb-8 bg-white rounded-lg shadow p-4">
@@ -108,32 +105,6 @@ export default function SettingsPage() {
               <div><span className="font-semibold">Name:</span> {profile.name}</div>
               <div><span className="font-semibold">Program:</span> {profile.program}</div>
               <div><span className="font-semibold">Email:</span> {profile.email}</div>
-              <div className="mt-4">
-                <span className="font-semibold">Email Verification:</span>{' '}
-                {user?.emailVerified ? (
-                  <span className="text-green-600">Verified ✓</span>
-                ) : (
-                  <div className="mt-2">
-                    <span className="text-red-600">Not Verified ✗</span>
-                    <button
-                      onClick={async () => {
-                        if (user) {
-                          try {
-                            await sendEmailVerification(user);
-                            setSuccess('Verification email sent! Please check your inbox.');
-                          } catch (error) {
-                            console.error('Verification email error:', error);
-                            setError('Failed to send verification email. Please try again.');
-                          }
-                        }
-                      }}
-                      className="ml-4 text-indigo-600 hover:text-indigo-800"
-                    >
-                      Resend Verification Email
-                    </button>
-                  </div>
-                )}
-              </div>
             </div>
           )}
         </div>
