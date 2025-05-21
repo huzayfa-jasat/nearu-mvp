@@ -36,6 +36,46 @@ export default function MatchesPage() {
   const [currentLocation, setCurrentLocation] = useState<Location | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Move fetchNearbyUsers to top level
+  const fetchNearbyUsers = async (location: Location) => {
+    if (!user) return;
+    try {
+      const q = query(
+        collection(db, 'users'),
+        where('isActive', '==', true)
+      );
+      const snapshot = await getDocs(q);
+      const now = Date.now();
+      const users: NearbyUser[] = [];
+      for (const docSnap of snapshot.docs) {
+        if (docSnap.id === user.uid) continue;
+        const userData = docSnap.data() as UserData;
+        if (!userData.location || userData.ghostMode) continue;
+        let lastActive = 0;
+        if (userData.lastActive instanceof Timestamp) {
+          lastActive = userData.lastActive.toDate().getTime();
+        } else if (userData.lastActive instanceof Date) {
+          lastActive = userData.lastActive.getTime();
+        }
+        if (now - lastActive > 60 * 60 * 1000) continue;
+        const distance = calculateDistance(userData.location, location);
+        if (distance <= 500) {
+          users.push({
+            id: docSnap.id,
+            name: userData.name || 'Unknown',
+            program: userData.program || 'Unknown',
+            distance,
+            location: userData.location
+          });
+        }
+      }
+      users.sort((a, b) => a.distance - b.distance);
+      setNearbyUsers(users);
+    } catch {
+      setError('Failed to fetch nearby users.');
+    }
+  };
+
   // Update ghost mode in Firestore when it changes
   useEffect(() => {
     if (!user) return;
@@ -95,46 +135,6 @@ export default function MatchesPage() {
     let isAppActive = true;
     let lastLocation: Location | null = null;
 
-    // Helper: fetch nearby users (only those active in last 5 min)
-    const fetchNearbyUsers = async (location: Location) => {
-      try {
-        const q = query(
-          collection(db, 'users'),
-          where('isActive', '==', true)
-        );
-        const snapshot = await getDocs(q);
-        const now = Date.now();
-        const users: NearbyUser[] = [];
-        for (const docSnap of snapshot.docs) {
-          if (docSnap.id === user.uid) continue;
-          const userData = docSnap.data() as UserData;
-          if (!userData.location || userData.ghostMode) continue;
-          // Only show users active in last 5 min
-          let lastActive = 0;
-          if (userData.lastActive instanceof Timestamp) {
-            lastActive = userData.lastActive.toDate().getTime();
-          } else if (userData.lastActive instanceof Date) {
-            lastActive = userData.lastActive.getTime();
-          }
-          if (now - lastActive > 60 * 60 * 1000) continue;
-          const distance = calculateDistance(userData.location, location);
-          if (distance <= 500) {
-            users.push({
-              id: docSnap.id,
-              name: userData.name || 'Unknown',
-              program: userData.program || 'Unknown',
-              distance,
-              location: userData.location
-            });
-          }
-        }
-        users.sort((a, b) => a.distance - b.distance);
-        setNearbyUsers(users);
-      } catch {
-        setError('Failed to fetch nearby users.');
-      }
-    };
-
     // Helper: update location in Firestore
     const updateLocation = async (location: Location) => {
       try {
@@ -192,11 +192,34 @@ export default function MatchesPage() {
 
     // Manual refresh button handler
     window.manualNearbyRefresh = () => {
-      // Use the latest currentLocation from state
-      setCurrentLocation((loc) => {
-        if (loc) fetchNearbyUsers(loc);
-        return loc;
-      });
+      if (!navigator.geolocation) {
+        setError('Geolocation is not supported by your browser.');
+        return;
+      }
+      setIsLoading(true);
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const loc = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+            timestamp: position.timestamp
+          };
+          setCurrentLocation(loc);
+          fetchNearbyUsers(loc)
+            .then(() => setIsLoading(false))
+            .catch((err: unknown) => {
+              setError('Failed to fetch nearby students.');
+              setIsLoading(false);
+              console.error('manualNearbyRefresh error:', err);
+            });
+        },
+        (err: GeolocationPositionError) => {
+          setError('Unable to get your location. Please enable location services.');
+          setIsLoading(false);
+          console.error('manualNearbyRefresh geolocation error:', err);
+        }
+      );
     };
 
     return () => {
@@ -221,6 +244,21 @@ export default function MatchesPage() {
       });
   }, [user]);
 
+  // Add robust logging
+  useEffect(() => {
+    console.log('MatchesPage: user:', user);
+    console.log('MatchesPage: currentLocation:', currentLocation);
+    if (!user || !currentLocation) return;
+    setIsLoading(true);
+    fetchNearbyUsers(currentLocation)
+      .then(() => setIsLoading(false))
+      .catch((err: unknown) => {
+        setError('Failed to fetch nearby students.');
+        setIsLoading(false);
+        console.error('fetchNearbyUsers error:', err);
+      });
+  }, [user, currentLocation]);
+
   const handleMessage = (userId: string) => {
     router.push(`/messages/${userId}`);
   };
@@ -230,6 +268,14 @@ export default function MatchesPage() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p>Loading...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-red-600">{error}</p>
       </div>
     );
   }
