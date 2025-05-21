@@ -58,6 +58,7 @@ export default function MatchesPage() {
 
   useEffect(() => {
     if (!user) return;
+    console.log('MatchesPage: user:', user);
 
     // Check ghost mode
     const checkGhostMode = async () => {
@@ -169,9 +170,10 @@ export default function MatchesPage() {
     document.addEventListener('visibilitychange', handleVisibility);
 
     // Start location tracking (on movement)
-    startLocationTracking(updateLocation, () => {
+    startLocationTracking(updateLocation, (err) => {
       setError('Unable to get your location. Please enable location services.');
       setIsLoading(false);
+      console.error('Location tracking error:', err);
     });
 
     // Fallback: update location every 5 min if app is open
@@ -208,6 +210,7 @@ export default function MatchesPage() {
   };
 
   if (!user || !currentLocation) {
+    console.log('MatchesPage: loading state. user:', user, 'currentLocation:', currentLocation);
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p>Loading...</p>

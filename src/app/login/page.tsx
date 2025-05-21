@@ -117,13 +117,25 @@ export default function LoginPage() {
           lastActive: new Date(),
           isActive: true
         });
-        setSuccess('Account created successfully! You can now sign in.');
-        setMode('signin');
+        // Wait for auth.currentUser to be available
+        let retries = 0;
+        while (!auth.currentUser && retries < 10) {
+          await new Promise(res => setTimeout(res, 200));
+          retries++;
+        }
+        console.log('SignUp: auth.currentUser after Firestore write:', auth.currentUser);
+        if (auth.currentUser) {
+          setSuccess('Account created successfully! You can now sign in.');
+          setMode('signin');
+        } else {
+          setError('Account created, but user not found. Please try signing in.');
+        }
       } else {
         setError('Account created, but user not found. Please try signing in.');
       }
       setIsLoading(false);
     } catch (error) {
+      console.error('SignUp error:', error);
       const authError = error as AuthError;
       switch (authError.code) {
         case 'auth/email-already-in-use':
@@ -139,7 +151,6 @@ export default function LoginPage() {
           setError('Please choose a stronger password.');
           break;
         default:
-          console.error('Signup error:', authError);
           setError('Failed to create account. Please try again.');
       }
       setIsLoading(false);

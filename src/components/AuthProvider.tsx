@@ -32,19 +32,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           await user.reload();
           user = auth.currentUser;
         }
+        console.log('AuthProvider: onAuthStateChanged user:', user);
         setUser(user);
         setLoading(false);
-
-        // Handle routing based on auth state
-        if (!user && !publicPaths.includes(pathname)) {
-          router.push('/login');
-        } else if (user && publicPaths.includes(pathname)) {
-          router.push('/matches');
-        } else if (user && !user.emailVerified && !publicPaths.includes(pathname)) {
-          // Redirect to login if email is not verified
-          router.push('/login?error=Please verify your email to continue');
-        }
-      } catch {
+      } catch (err) {
+        console.error('AuthProvider: onAuthStateChanged error:', err);
         setUser(null);
         setLoading(false);
       }
@@ -52,6 +44,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => unsubscribe();
   }, [pathname, router]);
+
+  // Only redirect after loading is false
+  useEffect(() => {
+    console.log('AuthProvider: redirect effect. user:', user, 'loading:', loading, 'pathname:', pathname);
+    if (loading) return;
+    if (!user && !publicPaths.includes(pathname)) {
+      console.log('AuthProvider: redirecting to /login');
+      router.push('/login');
+    } else if (user && publicPaths.includes(pathname)) {
+      console.log('AuthProvider: redirecting to /matches');
+      router.push('/matches');
+    }
+  }, [user, loading, pathname, router]);
 
   if (loading) {
     return (
