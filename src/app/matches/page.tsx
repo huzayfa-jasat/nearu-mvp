@@ -71,6 +71,8 @@ export default function MatchesPage() {
       }
       users.sort((a, b) => a.distance - b.distance);
       setNearbyUsers(users);
+      // Update lastActive for current user
+      await setDoc(doc(db, 'users', user.uid), { lastActive: new Date() }, { merge: true });
     } catch {
       setError('Failed to fetch nearby users.');
     }
@@ -176,12 +178,12 @@ export default function MatchesPage() {
       console.error('Location tracking error:', err);
     });
 
-    // Fallback: update location every 5 min if app is open
+    // Fallback: update location every 60 seconds if app is open
     fallbackInterval = setInterval(() => {
       if (isAppActive && currentLocation) {
         updateLocation(currentLocation);
       }
-    }, 5 * 60 * 1000);
+    }, 150 * 1000);
 
     // Background: update location every 10 min (if app is in background)
     locationInterval = setInterval(() => {
