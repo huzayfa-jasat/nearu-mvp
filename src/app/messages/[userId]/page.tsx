@@ -191,7 +191,7 @@ export default function MessagesPage({ params }: { params: Promise<{ userId: str
 
         {error && <p className="text-red-600 mb-4">{error}</p>}
 
-        <div className="space-y-4 mb-6 max-h-[60vh] overflow-y-auto">
+        <div className="space-y-4 mb-6 flex-1 overflow-y-auto" style={{ minHeight: 0 }}>
           {messages.map((message) => (
             <div
               key={message.id}

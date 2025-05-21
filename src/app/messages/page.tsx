@@ -17,6 +17,7 @@ interface Chat {
     id: string;
     name: string;
     photoURL: string;
+    program?: string;
   };
   status: 'pending' | 'accepted' | 'rejected';
   lastCheckin?: {
@@ -55,13 +56,14 @@ export default function MessagesPage() {
           // Only keep the latest message per chat
           if (!chatMap.has(otherUserId)) {
             const userDoc = await getDoc(doc(db, 'users', otherUserId));
-            let otherUser = { id: otherUserId, name: 'User', photoURL: '' };
+            let otherUser: { id: string; name: string; photoURL: string; program?: string } = { id: otherUserId, name: 'User', photoURL: '' };
             if (userDoc.exists()) {
               const userData = userDoc.data();
               otherUser = {
                 id: otherUserId,
                 name: userData.name || 'User',
-                photoURL: userData.photoURL || ''
+                photoURL: userData.photoURL || '',
+                program: userData.program || '',
               };
             }
             chatMap.set(otherUserId, {
@@ -154,6 +156,9 @@ export default function MessagesPage() {
                 <div className="flex justify-between items-center">
                   <div>
                     <h3 className="font-semibold text-lg text-indigo-600">{chat.otherUser.name}</h3>
+                    {chat.otherUser.program && (
+                      <p className="text-gray-500 text-xs mb-1">{chat.otherUser.program}</p>
+                    )}
                     <p className="text-indigo-600 text-sm">
                       {chat.messages[0]?.text}
                     </p>

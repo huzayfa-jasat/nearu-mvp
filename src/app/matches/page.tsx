@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/components/AuthProvider';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, doc, getDoc, setDoc, Timestamp } from 'firebase/firestore';
-import { startLocationTracking, stopLocationTracking } from '@/lib/location';
+import { startLocationTracking, stopLocationTracking, getCurrentLocation } from '@/lib/location';
 import { calculateDistance } from '@/lib/location';
 import { Location } from '@/lib/types';
 import { useRouter } from 'next/navigation';
@@ -191,10 +191,13 @@ export default function MatchesPage() {
     }, 10 * 60 * 1000);
 
     // Manual refresh button handler
-    const manualRefresh = () => {
-      if (currentLocation) fetchNearbyUsers(currentLocation);
+    window.manualNearbyRefresh = () => {
+      // Use the latest currentLocation from state
+      setCurrentLocation((loc) => {
+        if (loc) fetchNearbyUsers(loc);
+        return loc;
+      });
     };
-    window.manualNearbyRefresh = manualRefresh;
 
     return () => {
       stopLocationTracking();
@@ -204,6 +207,19 @@ export default function MatchesPage() {
       delete window.manualNearbyRefresh;
     };
   }, [user, isGhostMode]);
+
+  useEffect(() => {
+    if (!user) return;
+    // Try to get current location immediately on mount
+    getCurrentLocation()
+      .then(loc => {
+        setCurrentLocation(loc);
+      })
+      .catch(() => {
+        setError('Unable to get your location. Please enable location services.');
+        setIsLoading(false);
+      });
+  }, [user]);
 
   const handleMessage = (userId: string) => {
     router.push(`/messages/${userId}`);
