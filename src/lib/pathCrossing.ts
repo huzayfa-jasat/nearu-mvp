@@ -1,6 +1,5 @@
 import { Location } from './types';
 import { calculateDistance } from './location';
-import { TEST_MODE } from './testMode';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
@@ -35,7 +34,7 @@ export const processPathCrossing = async (
   }
 
   // Remove old events (6 min in test mode, 1 hour otherwise)
-  const cutoffTime = now - (TEST_MODE ? 360000 : 3600000);
+  const cutoffTime = now - 600000;
   const recentEvents = state.events.filter(event => event.timestamp > cutoffTime);
 
   // Check if users are within proximity
